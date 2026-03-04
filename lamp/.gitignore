@@ -1,0 +1,13 @@
+# 機密情報
+.env
+
+# OS
+.DS_Store
+Thumbs.db
+
+# エディタ
+.vscode/
+.idea/
+
+# ログ
+*.log

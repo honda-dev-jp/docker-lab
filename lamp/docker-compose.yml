@@ -1,0 +1,94 @@
+services:
+
+  # ============================================================
+  # PHP 8.4 + Apache
+  # ============================================================
+  web:
+    build: .
+    container_name: lamp_web
+    ports:
+      - "127.0.0.1:80:80"       # localhost のみ公開（外部非公開）
+    volumes:
+      - ../../review-app:/var/www/html
+      - ./apache/vhost.conf:/etc/apache2/sites-enabled/000-default.conf
+    environment:
+      - APACHE_RUN_USER=www-data
+      - APACHE_RUN_GROUP=www-data
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - lamp_network
+    restart: unless-stopped
+
+  # ============================================================
+  # MySQL 8.4 LTS（XServerチューニング済み）
+  # ============================================================
+  db:
+    image: mysql:8.4
+    container_name: lamp_db
+    # ports は公開しない（コンテナ間通信のみ）
+    expose:
+      - "3306"
+    volumes:
+      - db_data:/var/lib/mysql
+      - ./mysql/init:/docker-entrypoint-initdb.d
+      - ./mysql/conf.d/my.cnf:/etc/mysql/conf.d/my.cnf
+      - mysql_logs:/var/log/mysql
+    env_file:
+      - .env
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      MYSQL_DATABASE:      ${MYSQL_DATABASE}
+      MYSQL_USER:          ${MYSQL_USER}
+      MYSQL_PASSWORD:      ${MYSQL_PASSWORD}
+    shm_size: "256mb"
+    ulimits:
+      nofile:
+        soft: 65536
+        hard: 65536
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${MYSQL_ROOT_PASSWORD}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    networks:
+      - lamp_network
+    restart: unless-stopped
+
+  # ============================================================
+  # phpMyAdmin（ローカル限定・127.0.0.1のみ公開）
+  # ============================================================
+  phpmyadmin:
+    image: phpmyadmin:latest
+    container_name: lamp_phpmyadmin
+    ports:
+      - "127.0.0.1:8080:80"     # localhost のみ公開（外部非公開）
+    env_file:
+      - .env
+    environment:
+      PMA_HOST: db
+      PMA_PORT: 3306
+      PMA_USER:     ${PMA_USER}
+      PMA_PASSWORD: ${PMA_PASSWORD}
+      UPLOAD_LIMIT: 256M
+      MEMORY_LIMIT: 256M
+      MAX_EXECUTION_TIME: 300
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - lamp_network
+    restart: unless-stopped
+
+# ============================================================
+# ボリューム・ネットワーク
+# ============================================================
+volumes:
+  db_data:
+  mysql_logs:
+
+networks:
+  lamp_network:
+    driver: bridge
