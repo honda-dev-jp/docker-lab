@@ -49,4 +49,11 @@ COPY php.ini /usr/local/etc/php/php.ini
 # ────────────────────────────────────────
 WORKDIR /var/www/html
 
+# ────────────────────────────────────────
+# 画像アップロード先の所有者設定
+# www-data（Apacheの実行ユーザー）に書き込み権限を付与する
+# ────────────────────────────────────────
+RUN mkdir -p /var/www/html/images/thumbnail /var/www/html/images/icon \
+    && chown -R www-data:www-data /var/www/html/images
+
 EXPOSE 80
