@@ -4,57 +4,89 @@ services:
   # PHP 8.4 + Apache
   # ============================================================
   web:
-    build: .
+    build:
+      context: .
+      args:
+        # ホスト側ユーザーの UID / GID を Dockerfile に渡す
+        UID: ${UID:-1000}
+        GID: ${GID:-1000}
+
     container_name: lamp_web
+
+    # コンテナ実行ユーザーもホスト側 UID / GID に合わせる
+    # bind mount 上のファイル所有者ズレを起こしにくくする
+    user: "${UID:-1000}:${GID:-1000}"
+
     ports:
-      - "127.0.0.1:80:80"       # localhost のみ公開（外部非公開）
+      - "127.0.0.1:80:80" # localhost のみ公開（外部非公開）
+
     volumes:
+      # プロジェクト全体を bind mount
       - ../../review-app:/var/www/html
+
+      # Apache 仮想ホスト設定
       - ./apache/vhost.conf:/etc/apache2/sites-enabled/000-default.conf
+
     environment:
-      - APACHE_RUN_USER=www-data
-      - APACHE_RUN_GROUP=www-data
+      # Apache 実行ユーザー名
+      # Dockerfile 側で www-data の UID/GID をホスト側に寄せる前提
+      APACHE_RUN_USER: www-data
+      APACHE_RUN_GROUP: www-data
+      TZ: Asia/Tokyo
+
     depends_on:
       db:
         condition: service_healthy
+
     networks:
       - lamp_network
+
     restart: unless-stopped
 
   # ============================================================
-  # MySQL 8.4 LTS（XServerチューニング済み）
+  # MySQL 8.4 LTS
   # ============================================================
   db:
     image: mysql:8.4
     container_name: lamp_db
+
     # ports は公開しない（コンテナ間通信のみ）
     expose:
       - "3306"
+
     volumes:
       - db_data:/var/lib/mysql
       - ./mysql/init:/docker-entrypoint-initdb.d
       - ./mysql/conf.d/my.cnf:/etc/mysql/conf.d/my.cnf
       - mysql_logs:/var/log/mysql
+
     env_file:
       - .env
+
     environment:
       MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
-      MYSQL_DATABASE:      ${MYSQL_DATABASE}
-      MYSQL_USER:          ${MYSQL_USER}
-      MYSQL_PASSWORD:      ${MYSQL_PASSWORD}
+      MYSQL_DATABASE: ${MYSQL_DATABASE}
+      MYSQL_USER: ${MYSQL_USER}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+      TZ: Asia/Tokyo
+
     shm_size: "256mb"
+
     ulimits:
       nofile:
         soft: 65536
         hard: 65536
+
     healthcheck:
       test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${MYSQL_ROOT_PASSWORD}"]
       interval: 10s
       timeout: 5s
       retries: 10
       start_period: 30s
+
     networks:
       - lamp_network
+
     restart: unless-stopped
 
   # ============================================================
@@ -63,23 +95,30 @@ services:
   phpmyadmin:
     image: phpmyadmin:latest
     container_name: lamp_phpmyadmin
+
     ports:
-      - "127.0.0.1:8080:80"     # localhost のみ公開（外部非公開）
+      - "127.0.0.1:8080:80" # localhost のみ公開（外部非公開）
+
     env_file:
       - .env
+
     environment:
       PMA_HOST: db
       PMA_PORT: 3306
-      PMA_USER:     ${PMA_USER}
+      PMA_USER: ${PMA_USER}
       PMA_PASSWORD: ${PMA_PASSWORD}
       UPLOAD_LIMIT: 256M
       MEMORY_LIMIT: 256M
       MAX_EXECUTION_TIME: 300
+      TZ: Asia/Tokyo
+
     depends_on:
       db:
         condition: service_healthy
+
     networks:
       - lamp_network
+
     restart: unless-stopped
 
 # ============================================================
