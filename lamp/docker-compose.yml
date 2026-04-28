@@ -97,7 +97,7 @@ services:
     container_name: lamp_phpmyadmin
 
     ports:
-      - "127.0.0.1:8080:80" # localhost のみ公開（外部非公開）
+      - "127.0.0.1:8082:80" # localhost のみ公開（外部非公開）
 
     env_file:
       - .env
