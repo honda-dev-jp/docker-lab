@@ -57,7 +57,7 @@ docker compose ps
 | サービス       | URL                   | 備考               |
 |--------------|-----------------------|--------------------|
 | Web (Apache) | http://localhost      | localhost のみ公開 |
-| phpMyAdmin   | http://localhost:8080 | localhost のみ公開 |
+| phpMyAdmin   | http://localhost:8081 | localhost のみ公開 |
 | MySQL        | コンテナ間通信のみ     | 外部ポート非公開   |
 
 ## バックアップからのインポート
@@ -67,7 +67,7 @@ docker compose ps
 docker exec -i lamp_db mysql -u root -p "${MYSQL_ROOT_PASSWORD}" app_db < backup.sql
 
 # phpMyAdmin からインポートする場合
-# http://localhost:8080 → 対象DB → インポート（上限256MB）
+# http://localhost:8081 → 対象DB → インポート（上限256MB）
 ```
 
 ## ログ確認
