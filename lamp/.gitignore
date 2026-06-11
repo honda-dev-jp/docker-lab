@@ -11,3 +11,6 @@ Thumbs.db
 
 # ログ
 *.log
+
+# Local Docker Compose override
+compose.override.yml
