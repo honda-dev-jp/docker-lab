@@ -14,3 +14,4 @@ Thumbs.db
 
 # Local Docker Compose override
 compose.override.yml
+compose.override.yaml
