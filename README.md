@@ -10,8 +10,10 @@ Dockerfile、Docker Compose 設定、環境ごとの構築・検証手順を整�
 
 | ディレクトリ | 主な技術 | 状態 | 詳細 |
 | --- | --- | --- | --- |
-| [`lamp/`](lamp/) | PHP 8.4 / Apache / MySQL 8.4 / phpMyAdmin | 構築・動作確認済みの環境 | [LAMP 環境の README](lamp/README.md) |
+| [`lamp/`](lamp/) | PHP 8.4.27 / Apache / MySQL 8.4 / phpMyAdmin（PHP 8.3.36） | Web・phpMyAdmin の更新と基本動作を確認済み | [LAMP 環境の README](lamp/README.md) |
 | `node-express-react/` | Node.js / Express / React / TypeScript / SQLite | 計画中（未追加） | [Issue 1](https://github.com/honda-dev-jp/docker-lab/issues/1) |
+
+> **更新状況（2026-10-22）：** LAMP の Web コンテナを PHP 8.4.27、phpMyAdmin コンテナを PHP 8.3.36 に更新し、両コンテナのバージョンと基本動作を確認しました。変更のコミット・PR・`main` への反映は未完了のため、[Issue 4](https://github.com/honda-dev-jp/docker-lab/issues/4) は継続中です。
 
 > 一覧の状態は本ドキュメント更新時点の情報です。検証済み環境・バージョン・既知の制約は、各ディレクトリの README と実際の設定ファイルを確認してください。
 
@@ -23,6 +25,7 @@ docker-lab/
 ├── SECURITY.md        # セキュリティ方針・脆弱性報告方法
 └── lamp/              # PHP / Apache / MySQL 開発環境
     ├── README.md      # LAMP 環境の構築・操作・検証手順
+    ├── SECURITY_HISTORY.md  # LAMP の脆弱性対応・検証履歴
     ├── Dockerfile
     ├── docker-compose.yml
     ├── .env.example
@@ -54,7 +57,7 @@ cd lamp
 # （設定値全体を表示しない）
 docker compose config --quiet
 
-# 環境を起動する
+# 初回構築・通常の起動（更新済みベースイメージの取得は保証しない）
 docker compose up -d --build
 
 # 稼働状態を確認する
@@ -64,9 +67,9 @@ docker compose ps
 docker compose down
 ```
 
-**注意:** これは操作の概要です。最初の起動前に、[詳細なセットアップ手順](lamp/README.md#初回セットアップ)にある `.env`、別リポジトリの配置、ホスト固有の設定を確認してください。
+**注意:** これは操作の概要です。最初の起動前に、[詳細なセットアップ手順](lamp/README.md#初回セットアップ)にある `.env`、別リポジトリの配置、ホスト固有の設定を確認してください。**セキュリティ更新時には `docker compose up -d --build` だけで最新のベースイメージを取得できるとは限りません。** 今回の更新手順は [LAMP の README](lamp/README.md) を参照してください。`docker compose down -v` は MySQL の永続データを削除するため、安易に実行しないでください。
 
-現在の LAMP 構成では Web と phpMyAdmin のポートを `127.0.0.1` にバインドし、MySQL のポートはホストへ公開していません。実際の公開範囲は設定を変更するたびに再確認してください。
+現在の LAMP 構成では Web と phpMyAdmin のポートを `127.0.0.1` にバインドし、MySQL のポートはホストへ公開していません。Web のローカル動作確認は `http://localhost/` を使用します（アプリのリダイレクト条件により `http://127.0.0.1/` は HTTPS に転送される場合があります）。実際の公開範囲は設定を変更するたびに再確認してください。
 
 ## 設計・運用方針
 
@@ -84,6 +87,21 @@ docker compose down
 GitHub の依存関係アラート等は、検出や通知を補助する仕組みです。Docker イメージ内の OS パッケージ、実行時設定、アプリケーション固有の問題まで網羅するものではありません。
 
 脆弱性の対応は、内容と影響範囲を確認したうえで手動で判断・修正し、必要なテストとレビューを行います。最新の設定・保護機能の状態は、リポジトリの GitHub 設定画面を正本とします。
+
+### PHP セキュリティ更新の状況（2026-10-22）
+
+対応Issue：**[Issue 4 — PHP Critical 脆弱性対応](https://github.com/honda-dev-jp/docker-lab/issues/4)**
+
+| 対象 | 更新・検証状況 |
+| --- | --- |
+| LAMP Web | ベースイメージを `php:8.4.27-apache` に変更。ビルド・コンテナ再作成・稼働中PHP 8.4.27を確認済み |
+| Web の回帰確認 | ログイン画面、ゲスト作品一覧、作品詳細、画像・評価・レビュー表示を確認。PHP 8.4.27で対象PHPファイルの構文チェックもPASS |
+| phpMyAdmin | `phpmyadmin:latest` を再取得し、コンテナを単独で再作成。稼働中の PHP 8.3.36 を確認。管理画面表示、MySQL 接続、データベース一覧・テーブル一覧とレコード件数の表示を確認済み |
+| MySQL | LIFEBOOKの既存コンテナは維持。`healthy` を確認済み |
+
+Web コンテナはパッチバージョンを明示指定しているため、次回以降のPHPパッチ更新は自動では反映されません。また、Web の基本表示・構文チェックが通っても、会員ログインやレビュー投稿などの全機能を検証したことにはなりません。
+
+**Web・phpMyAdmin ともに修正版PHPへの更新と基本動作の確認を完了しています。** ただし、ログインやレビュー投稿などの未検証機能は残り、変更のコミット・PR・`main` への反映も未完了のため、Issue 4は継続中です。構築・更新手順は [lamp/README.md](lamp/README.md)、脆弱性の詳細と検証履歴は [lamp/SECURITY_HISTORY.md](lamp/SECURITY_HISTORY.md) を参照してください。
 
 ## ライセンス
 
