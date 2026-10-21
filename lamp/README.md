@@ -9,13 +9,13 @@ PHP 8.4 + Apache + MySQL 8.4 + phpMyAdmin を Docker Compose で起動する開�
 
 | サービス | イメージ | バージョン・備考 |
 |---|---|---|
-| PHP | `php:8.4-apache`（Docker 公式） | PHP 8.4 |
-| Apache | `php:8.4-apache` に内包 | Apache 2.4 系 |
+| PHP | `php:8.4.27-apache`（Docker 公式） | PHP 8.4.27（パッチバージョン指定） |
+| Apache | `php:8.4.27-apache` に内包 | Apache 2.4 系 |
 | MySQL | `mysql:8.4`（Docker 公式） | 8.4 LTS（標準構成） |
 | MySQL（LIFEBOOK） | `ubuntu/mysql:8.4-24.04_edge` | ローカル override で切り替え。digest 固定 |
-| phpMyAdmin | `phpmyadmin:latest` | ローカルからのみアクセス可能 |
+| phpMyAdmin | `phpmyadmin:latest` | phpMyAdmin 5.2.3 / PHP 8.3.36（2026-10-22 検証済み）。ローカルからのみアクセス可能 |
 
-> **検証済みの環境：** LIFEBOOK Ubuntu 24.04.4 LTS / Intel Pentium P6200。検証時、Web コンテナの PHP は 8.4.26 でした。イメージの更新によりパッチバージョンは変わる場合があります。
+> **検証済みの環境：** LIFEBOOK Ubuntu 24.04.4 LTS / Intel Pentium P6200。2026-10-22 に Web コンテナを PHP **8.4.26 → 8.4.27**、phpMyAdmin コンテナを PHP **8.3.33 → 8.3.36** に更新しました。Web のゲスト閲覧画面・PHP 構文チェック、および phpMyAdmin の管理画面・DB 接続を確認済みです。`Dockerfile` は `php:8.4.27-apache` を明示指定しているため、次回のパッチ更新には再変更が必要です。一方、`phpmyadmin:latest` は可変タグであり、今後のイメージ更新は別途取得と動作確認が必要です。
 
 ## ディレクトリ構成
 
@@ -28,6 +28,7 @@ PHP 8.4 + Apache + MySQL 8.4 + phpMyAdmin を Docker Compose で起動する開�
 │       ├── .gitignore
 │       ├── compose.override.yaml     # ホスト固有の設定（Git に含めない）
 │       ├── Dockerfile
+│       ├── SECURITY_HISTORY.md       # LAMP の脆弱性対応履歴
 │       ├── docker-compose.yml        # 共通構成（Git 管理）
 │       ├── php.ini
 │       ├── apache/
@@ -119,7 +120,7 @@ docker compose ps
 docker compose exec -T web php -v
 ```
 
-LIFEBOOK では、`lamp_db` が healthy、`lamp_web`・`lamp_phpmyadmin` が起動することを確認済みです。
+LIFEBOOK では、`lamp_db` が healthy、`lamp_web`・`lamp_phpmyadmin` が起動することを確認済みです。更新済みイメージを確実に利用するには、必要な `pull` / `build --pull` とコンテナの再作成・バージョン確認を行ってください。今回の作業手順は [SECURITY_HISTORY.md](SECURITY_HISTORY.md) に記録しています。
 
 ## アクセス先
 
@@ -163,6 +164,18 @@ DB の復元だけでは画像ファイルは戻りません。スクラッチ�
 
 ## 動作確認（LIFEBOOK で検証済み）
 
+### セキュリティ更新履歴（2026-10-22）
+
+PHP の Critical 脆弱性（CVE-2026-109618 / CVE-2026-109619）への対応として、2026-10-22 に以下を実施しました。
+
+- **Web コンテナ：** PHP **8.4.26 → 8.4.27**。再ビルド・稼働中バージョン・ゲスト閲覧画面・PHP 構文チェックを確認済み。
+- **phpMyAdmin コンテナ：** PHP **8.3.33 → 8.3.36**。新しい公式イメージを取得してコンテナのみ再作成し、稼働中バージョン・管理画面ログイン・既存DBのテーブル一覧表示を確認済み。
+- **MySQL：** 今回のPHP更新対象外。既存コンテナと永続データを維持。
+
+**PHPを使用する2コンテナの更新と基本動作確認は完了**しました。会員向け書き込み機能などの未検証項目は残り、変更のコミット・PR・`main` への反映はこれからです。対応Issueは [Issue 4](https://github.com/honda-dev-jp/docker-lab/issues/4) を参照してください。
+
+脆弱性の概要・影響範囲・更新コマンド・実測結果と残課題は **[SECURITY_HISTORY.md](SECURITY_HISTORY.md)** にまとめています。
+
 ### HTTP・アクセス制御
 
 ```bash
@@ -185,6 +198,8 @@ cd ~/projects/docker-lab/lamp
 docker compose exec -T web sh -c \
   'cd /var/www/html && find . -path "./vendor" -prune -o -type f -name "*.php" ! -path "./config/env.php" ! -path "./config/database.php" -exec php -l {} \;'
 ```
+
+**再検証結果（2026-10-22）：** Web コンテナを PHP 8.4.27 に更新後、上記のコマンドで構文チェックを再実行しました。出力されたすべての対象 PHP ファイルで `No syntax errors detected` を確認しました。`vendor/` と非公開設定ファイル（`env.php`・`database.php`）は検証対象外です。
 
 ### PHP-CS-Fixer（独立した Docker イメージ）
 
@@ -308,6 +323,8 @@ docker compose up -d --force-recreate web
 LIFEBOOK の Ubuntu ホストには PHP と PHP-CS-Fixer を入れていないため、従来の `scripts/check.sh` は一部失敗します。PHP 構文チェックは `web` コンテナ、PHP-CS-Fixer は専用 Docker イメージで個別に検証してください。
 
 ## セキュリティメモ
+
+LAMP の脆弱性対応履歴は [SECURITY_HISTORY.md](SECURITY_HISTORY.md) に記録します。リポジトリ全体の報告・保守方針は [../SECURITY.md](../SECURITY.md) を参照してください。
 
 - `.env` は Git に含めません。テンプレートのパスワードを実運用に使用しないでください。
 - `compose.override.yml` / `compose.override.yaml` はローカル設定なので、両方を `.gitignore` で除外します。
